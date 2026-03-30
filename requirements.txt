@@ -1,0 +1,19 @@
+# Core
+numpy
+pandas
+matplotlib
+
+# Optimization (for MPC)
+cvxpy
+scipy
+
+# Data handling
+xarray
+netCDF4
+
+# Utilities
+pyyaml
+
+# Optional (if you used notebooks)
+jupyter
+ipykernel
