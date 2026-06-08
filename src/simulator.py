@@ -13,14 +13,14 @@ class SimulationResult:
     feeder_violations:           np.ndarray
     per_battery_curtailment_kwh: np.ndarray
     per_battery_requested_kwh:   np.ndarray
-    omega_hz:                    np.ndarray  # grid frequency at each timestep (Phase 4)
+    omega_hz:                    np.ndarray
 
 
 def run_simulation(
     load_profiles_kw:  np.ndarray,
     prices:            np.ndarray,
     batteries:         list[Battery],
-    controller,
+    controller,                          # single controller OR list of controllers
     dt_hours:          float = 1.0,
     low_threshold:     float = 30.0,
     high_threshold:    float = 70.0,
@@ -28,52 +28,36 @@ def run_simulation(
     neighborhood_size: int   = 2,
     positions:         list[float] | None = None,
     position_alpha:    float = 0.5,
-    # --- Phase 4: frequency dynamics ---
-    # M=0 disables frequency tracking — all Phase 1/2/3 experiments unchanged.
-    M:             float = 0.0,   # inertia constant (s). 0 = disabled.
-    omega_nominal: float = 50.0,  # nominal grid frequency (Hz)
-    generation_kw: float = 0.0,   # background generation (kW) — fixed per run
+    M:                 float = 0.0,
+    omega_nominal:     float = 50.0,
+    generation_kw                = 0.0,
 ) -> SimulationResult:
     """
-    Simulate one battery fleet under a shared controller.
+    Simulate one battery fleet under a shared or per-battery controller.
 
-    Decision model — simultaneous:
-        All batteries observe the same base feeder load before any battery
-        has acted. This avoids ordering effects.
+    controller: either a single callable (all batteries use the same),
+                or a list of callables (one per battery, for mixed fleet).
 
-    Position model (Model B):
-        Each battery has a position in [0, 1].
-        0 = near source, 1 = end of line.
-        End-of-line batteries have a tighter local feeder limit:
-            local_limit_i = feeder_limit x (1 - position_i x position_alpha)
-        position_alpha=0.5 means end-of-line limit is 50% tighter than source.
-
-    Curtailment tracking:
-        Curtailment is measured against the unconstrained TOU desire —
-        what the battery WOULD have done with no feeder awareness.
-
-    Frequency dynamics (Phase 4):
-        Enabled when M > 0. Uses the swing equation:
-            dω/dt = (1/M) * net_injection
-        where net_injection = generation + battery_power - base_load.
-        Frequency is updated at the TOP of each timestep so batteries
-        can see it before deciding. Imbalance from the previous timestep
-        drives the current timestep's frequency (simultaneous decisions).
-        When M=0 (default), omega_hz is flat at omega_nominal —
-        all existing experiments behave identically to before.
+    All other parameters unchanged from Phase 1-4.
     """
 
     n_steps, n_batteries = load_profiles_kw.shape
-# Normalise generation to per-timestep array regardless of input type
+
+    if positions is None:
+        positions = [0.0] * n_batteries
+
+    # Normalise controller to a list — one entry per battery
+    if callable(controller):
+        controllers = [controller] * n_batteries
+    else:
+        controllers = list(controller)
+
+    # Normalise generation to per-timestep array
     if np.isscalar(generation_kw):
         generation_array = np.full(n_steps, float(generation_kw))
     else:
         generation_array = np.asarray(generation_kw, dtype=float)
 
-    if positions is None:
-        positions = [0.0] * n_batteries
-
-    # --- output arrays ---
     aggregate_load          = np.zeros(n_steps)
     aggregate_battery_kw    = np.zeros(n_steps)
     feeder_violations       = np.zeros(n_steps, dtype=bool)
@@ -81,22 +65,17 @@ def run_simulation(
     per_battery_requested   = np.zeros(n_batteries)
     omega_history           = np.zeros(n_steps)
 
-    # --- state variables ---
-    prev_actions    = np.zeros(n_batteries)
-    omega           = omega_nominal   # current frequency — starts at nominal
-    prev_imbalance  = 0.0
+    prev_actions   = np.zeros(n_batteries)
+    omega          = omega_nominal
+    prev_imbalance = 0.0
 
     for t in range(n_steps):
 
-        # --- 1. Update frequency from previous timestep's imbalance ---
-        # Batteries will see this omega when deciding what to do.
         if M > 0.0:
             omega += (dt_hours / M) * prev_imbalance
-            # Safety clamp: prevent unphysical runaway
-            omega = float(np.clip(omega, omega_nominal - 5.0, omega_nominal + 5.0))
+            omega  = float(np.clip(omega, omega_nominal - 5.0, omega_nominal + 5.0))
         omega_history[t] = omega
 
-        # --- 2. Batteries observe system state and decide ---
         base_load_kw    = float(load_profiles_kw[t].sum())
         battery_powers: list[float] = []
 
@@ -106,7 +85,7 @@ def run_simulation(
             neighbor_avg_kw = float(np.mean(prev_actions[neighbour_idx]))
             local_limit_kw  = feeder_limit_kw * (1.0 - positions[i] * position_alpha)
 
-            requested_kw = controller(
+            requested_kw = controllers[i](
                 price           = float(prices[t]),
                 low_threshold   = low_threshold,
                 high_threshold  = high_threshold,
@@ -115,14 +94,13 @@ def run_simulation(
                 feeder_load_kw  = base_load_kw,
                 feeder_limit_kw = local_limit_kw,
                 neighbor_avg_kw = neighbor_avg_kw,
-                omega           = omega,          # Phase 4 — droop uses this
-                omega_nominal   = omega_nominal,  # Phase 4 — droop uses this
+                omega           = omega,
+                omega_nominal   = omega_nominal,
             )
 
             actual_kw = battery.apply_power(requested_kw, dt_hours)
             battery_powers.append(actual_kw)
 
-            # --- Curtailment tracking ---
             price_t = float(prices[t])
             if price_t <= low_threshold:
                 tou_desire_kw = -battery.max_charge_kw
@@ -138,7 +116,6 @@ def run_simulation(
                 per_battery_requested[i]   += desired_energy
                 per_battery_curtailment[i] += curtailed_energy
 
-        # --- 3. Compute aggregate outcomes ---
         prev_actions     = np.array(battery_powers)
         total_battery_kw = float(sum(battery_powers))
         feeder_load_kw   = base_load_kw - total_battery_kw
@@ -147,10 +124,6 @@ def run_simulation(
         aggregate_battery_kw[t] = total_battery_kw
         feeder_violations[t]    = feeder_load_kw > feeder_limit_kw
 
-        # --- 4. Compute imbalance for next timestep's frequency update ---
-        # net injection = generation + battery discharge - demand
-        # positive = surplus = frequency will rise next step
-        # negative = deficit = frequency will fall next step
         prev_imbalance = float(generation_array[t]) + total_battery_kw - base_load_kw
 
     return SimulationResult(
@@ -170,16 +143,13 @@ def run_simulation(
 def compute_peak_kw(aggregate_load_kw: np.ndarray) -> float:
     return float(np.max(aggregate_load_kw))
 
-
 def compute_max_ramp_kw(aggregate_load_kw: np.ndarray) -> float:
     if len(aggregate_load_kw) < 2:
         return 0.0
     return float(np.max(np.abs(np.diff(aggregate_load_kw))))
 
-
 def count_feeder_violations(feeder_violations: np.ndarray) -> int:
     return int(np.sum(feeder_violations))
-
 
 def compute_total_feeder_excess_kw(
     aggregate_load_kw: np.ndarray,
@@ -189,18 +159,14 @@ def compute_total_feeder_excess_kw(
 
 
 # ---------------------------------------------------------------------------
-# Metric helpers — Phase 4 (frequency)
+# Metric helpers — Phase 4
 # ---------------------------------------------------------------------------
 
 def compute_frequency_nadir(omega_hz: np.ndarray) -> float:
-    """Lowest frequency reached — how deep the disturbance drove it."""
     return float(np.min(omega_hz))
 
-
 def compute_frequency_peak(omega_hz: np.ndarray) -> float:
-    """Highest frequency reached — how far above nominal it went."""
     return float(np.max(omega_hz))
-
 
 def compute_frequency_recovery_time(
     omega_hz:      np.ndarray,
@@ -208,16 +174,10 @@ def compute_frequency_recovery_time(
     tolerance:     float = 0.1,
     dt_hours:      float = 1.0,
 ) -> float:
-    """
-    Time (hours) until frequency returns within tolerance of nominal.
-    Returns full simulation duration if recovery never happens.
-    """
     recovered = np.where(np.abs(omega_hz - omega_nominal) <= tolerance)[0]
     if len(recovered) == 0:
         return float(len(omega_hz)) * dt_hours
     return float(recovered[0]) * dt_hours
 
-
 def compute_frequency_std(omega_hz: np.ndarray) -> float:
-    """Standard deviation of frequency — measures overall stability."""
     return float(np.std(omega_hz))

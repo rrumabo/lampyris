@@ -48,3 +48,11 @@ independent of disturbance size.
 Anomaly: disturbance=20 kW at t11 pushed droop=0.5
 to near-instability (nadir=45.07 Hz).
 New variable identified: drop timing interacts with droop gain.
+
+Phase 5 — Mixed fleet:
+Stability threshold: 60% droop fraction (6/10 batteries).
+Near-source-first = random assignment — both stabilize at 60%.
+End-of-line-first needs 70% — position matters at the margin.
+Frequency is a global signal — droop effectiveness is
+position-independent, unlike curtailment burden (Phase 3).
+std improvement is smooth — each additional droop agent helps equally.

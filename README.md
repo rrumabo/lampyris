@@ -142,3 +142,59 @@ python3 experiments/fairness_sweep.py
 python3 experiments/frequency_sweep.py
 python3 experiments/disturbance_sweep.py
 ```
+
+---
+
+## What Phase 5 showed
+
+**Question:** What fraction of a fleet needs droop control before the system stabilizes — and does the assignment strategy matter?
+
+A mixed fleet was simulated: some batteries using droop control, the rest using naive TOU. Three assignment strategies were tested — near-source-first, end-of-line-first, and random — across all possible droop fractions from 10% to 100%.
+
+### Key findings
+
+1. **60% of the fleet needs droop control to stabilize.** Below this threshold all three strategies fail regardless of which batteries receive droop. Above it, frequency deviation stays within acceptable bounds.
+
+2. **Near-source-first and random assignment are equivalent.** Both stabilize at 60%. End-of-line-first requires 70% — one extra battery. Position matters at the margin but not dramatically.
+
+3. **Frequency response is position-independent.** Droop effectiveness is the same regardless of where on the feeder the battery sits, because frequency is a global signal observed equally by all agents. This contrasts sharply with curtailment burden (Phase 3), which is strongly position-dependent.
+
+4. **Stability improvement is smooth and predictable.** Each additional droop agent reduces frequency standard deviation consistently. No cliff, no sudden threshold jump — a gradual linear improvement across all strategies.
+
+---
+
+## Structure
+
+```
+src/              battery, controllers, simulator
+experiments/      basic_run.py, information_sweep.py,
+                  neighborhood_size_sweep.py, fairness_sweep.py,
+                  frequency_sweep.py, disturbance_sweep.py,
+                  mixed_fleet_sweep.py
+notebooks/        coordination_comparison.ipynb
+results/          csv outputs per configuration
+```
+
+## Run
+
+```bash
+pip install -r requirements.txt
+
+# Phase 1
+python3 experiments/basic_run.py
+jupyter notebook notebooks/coordination_comparison.ipynb
+
+# Phase 2
+python3 experiments/information_sweep.py
+python3 experiments/neighborhood_size_sweep.py
+
+# Phase 3
+python3 experiments/fairness_sweep.py
+
+# Phase 4
+python3 experiments/frequency_sweep.py
+python3 experiments/disturbance_sweep.py
+
+# Phase 5
+python3 experiments/mixed_fleet_sweep.py
+```
