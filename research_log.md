@@ -56,3 +56,31 @@ End-of-line-first needs 70% — position matters at the margin.
 Frequency is a global signal — droop effectiveness is
 position-independent, unlike curtailment burden (Phase 3).
 std improvement is smooth — each additional droop agent helps equally.
+
+Phase 6 A — topology sweep:
+Expected: disorder → order as k increases (Kuramoto-style).
+Found: quasi-order → brief sync window → polarization.
+
+Sync window:
+  small_world: k=[0.05, 0.21], max 90% of runs
+  linear:      k=[0.05, 0.41], max 75% of runs
+  star:        never syncs
+
+Polarization onset:
+  small_world: k>0.31 (faster due to shortcuts)
+  linear:      k>0.46
+  star:        never — hub mediation prevents extremes
+
+Finding: small-world accelerates BOTH synchronization AND polarization.
+Shortcuts are a double-edged sword.
+
+Phase 6 B — heterogeneous k:
+Leader emergence confirmed: corr(k_i, |x_i|) = 0.84-0.86 for bimodal.
+Agents with k∈[1.0,1.5] reach |x|≈1.0, followers partially dragged.
+
+Small-world: best for homogeneous k (sync=70%),
+             worst for heterogeneous (complete collapse).
+Star: most robust — hub dampens leader influence.
+
+Key finding: topology determines HOW leaders affect the system,
+not WHETHER leaders exist.
