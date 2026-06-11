@@ -1,0 +1,61 @@
+schema_version: "0.1"
+
+handoff:
+  from: pythia
+  to: lambyris
+  purpose: >
+    Describe a controller and uncertainty regime that can be instantiated
+    across many agents in a fleet simulation.
+
+controller:
+  name: uncertainty_aware_mpc
+  family: mpc
+  horizon_steps: 24
+  timestep_minutes: 60
+  action_variable: battery_power_kw
+  sign_convention:
+    positive: charge
+    negative: discharge
+
+battery:
+  capacity_kwh: 50.0
+  power_limit_kw: 10.0
+  soc_min: 0.1
+  soc_max: 0.9
+  soc_initial_distribution:
+    type: uniform
+    low: 0.3
+    high: 0.7
+
+uncertainty:
+  type: forecast_error
+  forecast_target: net_load_kw
+  error_model: gaussian_ar1
+  sigma_kw: 5.0
+  rho_time: 0.7
+  rho_agents: 0.8
+  shared_component: true
+  private_component: true
+
+inputs:
+  required_timeseries:
+    - timestamp
+    - forecast_net_load_kw
+    - actual_net_load_kw
+  optional_timeseries:
+    - price_eur_per_mwh
+    - pv_kw
+    - demand_kw
+
+outputs_expected_from_polis:
+  agent_metrics:
+    - soc
+    - battery_power_kw
+    - curtailed_kw
+  system_metrics:
+    - feeder_peak_kw
+    - total_excess_kw
+    - ramp_rate_kw
+    - sync_index
+    - fairness_gini
+    - frequency_std_hz
