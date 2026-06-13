@@ -35,6 +35,7 @@ def run_simulation(
     generation_kw                = 0.0,
     rho_agents:        float = 0.0,   # correlation of forecast errors across agents
     forecast_error_sigma_kw: float = 5.0,
+    price_sigma:       float = 0.0,
     network:           Network | None = None,
 ) -> SimulationResult:
     """
@@ -55,6 +56,8 @@ def run_simulation(
         raise ValueError("rho_agents must be in [0, 1]")
     if forecast_error_sigma_kw < 0.0:
         raise ValueError("forecast_error_sigma_kw must be non-negative")
+    if price_sigma < 0.0:
+        raise ValueError("price_sigma must be non-negative")
 
     # Normalise controller to a list — one entry per battery
     if callable(controller):
@@ -115,10 +118,11 @@ def run_simulation(
                 else 0.0
             )
             local_limit_kw    = feeder_limit_kw * (1.0 - positions[i] * position_alpha)
-            perceived_load_kw = base_load_kw + float(correlated_noise[t, i])
+            perceived_load_kw = base_load_kw
+            perceived_price   = float(prices[t]) + float(correlated_noise[t, i]) * price_sigma
 
             requested_kw = controllers[i](
-                price           = float(prices[t]),
+                price           = perceived_price,
                 low_threshold   = low_threshold,
                 high_threshold  = high_threshold,
                 max_power_kw    = battery.max_charge_kw,

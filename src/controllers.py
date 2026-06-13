@@ -241,6 +241,68 @@ def neighborhood_controller(
  
 
 # -------------------------------------------------
+# BELIEF + NEIGHBOURHOOD HYBRID CONTROLLER
+# -------------------------------------------------
+
+def belief_neighborhood_controller(
+    price: float,
+    low_threshold: float,
+    high_threshold: float,
+    max_power_kw: float,
+    feeder_load_kw: float,
+    feeder_limit_kw: float,
+    neighbor_avg_kw: float = 0.0,
+    belief_weight: float = 0.5,
+    **_ignored,
+) -> float:
+    """
+    Hybrid controller using two information channels.
+
+    feeder_load_kw:
+        Perceived feeder stress. This is where rho_agents enters through
+        correlated belief noise in the simulator.
+
+    neighbor_avg_kw:
+        Observed average neighbour action from the previous timestep. This is
+        where network topology enters.
+
+    belief_weight:
+        Fixed at 0.5 by default for the first rho/topology sweep.
+        1.0 means trust only feeder belief.
+        0.0 means trust only neighbour observation.
+
+    Sign convention:
+        negative = charge
+        positive = discharge
+
+    The hybrid only scales charging. Discharge is allowed because it helps
+    relieve feeder stress.
+    """
+    base_request = tou_controller(
+        price=price,
+        low_threshold=low_threshold,
+        high_threshold=high_threshold,
+        max_power_kw=max_power_kw,
+    )
+
+    # Idle or discharging: do not suppress helpful action.
+    if base_request >= 0.0:
+        return base_request
+
+    belief_weight = max(0.0, min(1.0, belief_weight))
+
+    # Belief signal: if perceived feeder load is near/above limit, reduce charge.
+    feeder_scale = max(0.0, min(1.0, 1.0 - feeder_load_kw / feeder_limit_kw))
+
+    # Topology signal: if neighbours charged hard last step, reduce charge.
+    neighbor_pressure = max(0.0, -neighbor_avg_kw) / max_power_kw
+    neighbor_scale = max(0.0, min(1.0, 1.0 - neighbor_pressure))
+
+    scale = belief_weight * feeder_scale + (1.0 - belief_weight) * neighbor_scale
+
+    return base_request * scale
+
+# -------------------------------------------------
 # DROOP CONTROLLER (Phase 4 — frequency response)
 # -------------------------------------------------
 
