@@ -6,7 +6,7 @@ Question:
     longer prevent synchronization-driven collective failure?
 
 Controller:
-    tou_controller price-signal synchronization-collapse sweep.
+    belief_neighborhood_controller feeder-failure sweep with calibrated 10-battery setup.
 
 Metrics:
     sync_index = mean_t(std_i(per_battery_power_kw[t, i]))
@@ -38,7 +38,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.battery import Battery
-from src.controllers import tou_controller
+from src.controllers import belief_neighborhood_controller
 from src.network import make_linear, make_small_world, make_star
 from src.simulator import run_simulation
 
@@ -54,12 +54,12 @@ rho_values = np.linspace(0.0, 1.0, 40)
 n_runs = 20
 
 n_steps = 24
-n_batteries = 30
+n_batteries = 10
 
 M = 10.0
 forecast_error_sigma_kw = 1.0
 price_sigma = 20.0
-feeder_limit_kw = 120.0
+feeder_limit_kw = 60.0
 
 battery_capacity_kwh = 20.0
 battery_power_kw = 5.0
@@ -70,11 +70,11 @@ network_k = 0.2
 RESULTS_DIR = ROOT / "results"
 RESULTS_DIR.mkdir(exist_ok=True)
 
-CSV_PATH = RESULTS_DIR / "price_sync_results.csv"
-SUMMARY_PATH = RESULTS_DIR / "price_sync_summary.csv"
-THRESHOLD_PATH = RESULTS_DIR / "price_sync_thresholds.csv"
-PLOT_PATH = RESULTS_DIR / "price_sync_plot.png"
-GAP_PLOT_PATH = RESULTS_DIR / "price_sync_protection_gap.png"
+CSV_PATH = RESULTS_DIR / "feeder_failure_results.csv"
+SUMMARY_PATH = RESULTS_DIR / "feeder_failure_summary.csv"
+THRESHOLD_PATH = RESULTS_DIR / "feeder_failure_thresholds.csv"
+PLOT_PATH = RESULTS_DIR / "feeder_failure_plot.png"
+GAP_PLOT_PATH = RESULTS_DIR / "feeder_failure_protection_gap.png"
 
 
 # -----------------------------------------------------------------------------
@@ -234,7 +234,7 @@ def main() -> None:
                     load_profiles_kw=load_profiles_kw,
                     prices=prices,
                     batteries=batteries,
-                    controller=tou_controller,
+                    controller=belief_neighborhood_controller,
                     M=M,
                     feeder_limit_kw=feeder_limit_kw,
                     rho_agents=float(rho_agents),

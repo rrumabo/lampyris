@@ -91,54 +91,75 @@ We replaced the linear feeder with general graphs (linear chain, star and Watts�
 
 These results caution against naive application of consensus theories: the 'correct' value of k depends on the network’s spectral properties, and heterogeneity can destabilise even otherwise stable networks.
 
-## Phase 7 – Correlated Belief and Synchronisation Collapse
+## Phase 7 – Correlated Belief, Synchronisation Collapse, and Feeder Failure
 
 **Question:** What is the critical belief correlation ρ_c above which
-topology can no longer prevent synchronisation-driven collective failure?
+topology can no longer prevent synchronisation-driven collective failure —
+and how does topology modulate the gap between collapse and actual grid failure?
 
-We introduced a second noise channel: each agent receives a corrupted
-price signal rather than the true market price. The corruption is
-decomposed into a shared component (common shock Z(t), scaled by
-ρ_agents) and a private component (independent noise ε_i). At ρ_agents = 0
-each agent has fully private forecast error; at ρ_agents = 1 all agents
-share the same mistaken belief about the price. We swept ρ_agents from
-0 to 1 across four topologies with 30 batteries and 20 runs per point.
+Two experiments were run. The price-sync sweep used a TOU controller and
+corrupted only the price signal, sweeping ρ_agents from 0 to 1 across four
+topologies with 30 batteries and 20 runs per point. The feeder-failure sweep
+used the hybrid belief–neighbourhood controller with a calibrated feeder
+limit, measuring when synchronised behaviour produced actual feeder overload.
 
 **Key findings:**
 
 1. **Topology modulates ρ_c.** The critical correlation at which
 synchronisation collapse begins depends on network structure:
 small-world collapses first (ρ_c ≈ 0.21), legacy ring and linear
-chain follow (ρ_c ≈ 0.26), and the star resists longest (ρ_c ≈ 0.32).
-Topologies with faster information mixing are more vulnerable to
-correlated belief.
+chain follow (ρ_c ≈ 0.23–0.26), and the star resists longest
+(ρ_c ≈ 0.31–0.41 depending on controller).
 
 2. **Star topology delays onset but amplifies collapse.** The hub
 structure mediates neighbour signals and postpones the synchronisation
-threshold. However, once the threshold is crossed, the star collapses
-more completely than other topologies — reaching near-zero agent
-diversity at ρ_agents = 1.0. Resistance and catastrophic collapse
+threshold. Once the threshold is crossed the star collapses more
+steeply than other topologies. Resistance and catastrophic collapse
 are two sides of the same hub-mediation mechanism.
 
-3. **The decline is gradual, not a sharp phase transition.** Unlike
-Kuramoto-style synchronisation, there is no abrupt cliff in the
-sync-index curve. Diversity erodes continuously from ρ = 0 to ρ = 1,
-with the 2σ threshold capturing onset rather than full collapse.
-This is consistent with common-noise synchronisation theory, where
-shared external forcing degrades independence incrementally rather
-than triggering a sudden bifurcation.
+3. **The decline is gradual, not a sharp phase transition.** Diversity
+erodes continuously from ρ = 0 to ρ = 1. This is consistent with
+common-noise synchronisation theory, where shared external forcing
+degrades independence incrementally rather than triggering a sudden
+bifurcation.
 
-4. **Feeder failure was not observed in this phase.** The TOU
-controller used here has no feeder awareness; synchronised action
-does not yet translate into measurable grid violations. Exposing
-the downstream failure layer requires a feeder-aware controller —
-the subject of the next phase.
+4. **The spectral conjecture is falsified.** The initial hypothesis
+that ρ_c scales with 1/λ₂ (inverse algebraic connectivity) is not
+supported. Linear and legacy-ring share nearly identical ρ_c despite
+an 18-fold difference in λ₂. ρ_c is governed by local degree
+structure and information aggregation, not global spectral mixing rate.
 
-**Conjecture:** ρ_c scales with the spectral gap of the topology graph.
-Faster mixing accelerates belief propagation and lowers the threshold
-for collective synchronisation. Formal verification of this conjecture
-requires analysis of the McKean–Vlasov system under common noise — an
-open problem.
+5. **Topology changes collapse curve shape, not only position.**
+The slope of the sync-index curve near ρ_c differs across topologies:
+star is steepest (slope 1.22), legacy-ring is gentlest (slope 0.76).
+More resistant topologies collapse more steeply once triggered —
+a delay-but-amplify pattern. Total collapse magnitude (~82%) is
+topology-independent.
+
+6. **Collapse onset and feeder failure are independent events.**
+With a feeder-aware controller and calibrated feeder limit, both
+thresholds were measured. The protection window — the gap between
+ρ_c_sync and ρ_c_failure — varies significantly by topology:
+
+| Topology    | ρ_c_sync | ρ_c_failure | Protection window |
+|-------------|----------|-------------|-------------------|
+| linear      | 0.308    | 0.359       | 0.051             |
+| legacy_ring | 0.333    | 0.462       | 0.128             |
+| star        | 0.410    | 0.590       | 0.179             |
+| small_world | 0.282    | 0.487       | 0.205             |
+
+Small-world collapses earliest but has the largest protection window.
+Linear collapses second but has the smallest window. Collapse onset
+does not predict failure onset — they are independent properties of
+the topology.
+
+7. **Local degree structure governs ρ_c, not spectral mixing.**
+Topologies with the same local degree structure (linear and legacy-ring,
+both degree-2) share the same ρ_c regardless of global topology.
+The protection window is also governed by local topology: small-world
+shortcuts distribute synchronised load across multiple paths, delaying
+feeder impact despite early collapse onset. Linear chains propagate
+synchronised load directly, leaving almost no buffer.
 
 ## Discussion and Outlook
 

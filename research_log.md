@@ -85,29 +85,31 @@ Star: most robust — hub dampens leader influence.
 Key finding: topology determines HOW leaders affect the system,
 not WHETHER leaders exist.
 
-Phase 7 — rho_agents sweep (price signal corruption):
-
-Question: What is the critical belief correlation rho_c above which
-topology can no longer prevent synchronization collapse?
-
-Setup: 30 batteries, tou_controller, price noise sigma=20 kW,
-rho_agents swept 0→1, 20 runs per point, 4 topologies.
-
-Finding — rho_c ordering:
-  small_world  0.21
-  legacy_ring  0.26
-  linear       0.26
-  star         0.32
-
-Topology modulates rho_c. Small-world collapses first — shortcuts
-accelerate belief propagation. Star resists longest — hub mediation
-delays onset — but collapses most completely at rho=1.0 (~92% drop).
-
-Decline is gradual, not a sharp phase transition. Consistent with
-common noise synchronization literature (no Kuramoto-style cliff).
-
-rho_c_failure = None throughout. Feeder failure layer not yet exposed.
-TOU controller has no feeder awareness — next step adds it.
-
-Conjecture: rho_c scales with spectral gap of the topology graph.
-Faster mixing → earlier collapse.
+Phase 7b — feeder_failure sweep: belief_neighborhood_controller
+Question:
+At what rho does synchronised charging cause feeder overload — and
+how large is the protection window between collapse and failure?
+Setup:
+10 batteries
+belief_neighborhood_controller
+feeder_limit_kw = 60.0
+price_sigma = 20.0
+rho_agents swept 0 to 1
+40 rho points, 20 runs per point
+4 topologies
+Baseline violations at rho=0: 0.01–0.03 (clean)
+Finding — rho_c and protection windows:
+  topology      rho_c_sync  rho_c_failure  window
+  small_world   0.282       0.487          0.205
+  linear        0.308       0.359          0.051
+  legacy_ring   0.333       0.462          0.128
+  star          0.410       0.590          0.179
+Key findings:
+Collapse onset and feeder failure are independent properties.
+Small_world collapses earliest but has the largest protection window.
+Linear collapses second but has the smallest protection window.
+Spectral conjecture falsified: lambda_2 does not predict rho_c.
+Local degree structure and information aggregation govern rho_c,
+not global spectral mixing rate.
+Delay-but-amplify pattern confirmed: topologies with higher rho_c
+collapse more steeply once triggered (star slope 1.22, legacy_ring 0.76).
