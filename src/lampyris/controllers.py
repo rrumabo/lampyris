@@ -2,12 +2,6 @@ from __future__ import annotations
 from typing import List
 import random
 
-#-------------------------------------------------
-# CONTROLLER IDEA:
-# Controllers decide what the battery should do.
-# Battery decides what CAN be actually possible.
-#--------------------------------------------------
-
 def tou_controller(
     price: float,
     low_threshold: float,
@@ -16,7 +10,7 @@ def tou_controller(
     **_ignored,
 ) -> float:
     """
-    Simple Time-of-Use controller.
+    Simple Time of Use controller.
 
     - Charge when price is low
     - Discharge when price is high
@@ -28,18 +22,14 @@ def tou_controller(
     """
 
     if price <= low_threshold:
-        return -max_power_kw  # charge
+        return -max_power_kw  
 
     if price >= high_threshold:
-        return max_power_kw  # discharge
+        return max_power_kw  
 
     return 0.0
 
-
-# -------------------------------------------------
 # RANDOMIZED CONTROLLER (for coordination test)
-# -------------------------------------------------
-
 def randomized_tou_controller(
     price: float,
     low_threshold: float,
@@ -63,10 +53,7 @@ def randomized_tou_controller(
         max_power_kw=max_power_kw,
     )
 
-# -------------------------------------------------
 # FEEDER-AWARE CAP CONTROLLER
-# -------------------------------------------------
-
 def capped_controller(requested_kw: float, feeder_load_kw: float, feeder_limit_kw: float) -> float:
     """
     Caps battery action if feeder is close to limit.
@@ -79,11 +66,7 @@ def capped_controller(requested_kw: float, feeder_load_kw: float, feeder_limit_k
 
     return requested_kw
 
-# -------------------------------------------------
 # TOU + CAP COORDINATION
-# -------------------------------------------------
-
-
 def capped_tou_controller(
     price: float,
     low_threshold: float,
@@ -110,10 +93,7 @@ def capped_tou_controller(
         feeder_limit_kw=feeder_limit_kw,
     )
 
-# -------------------------------------------------
 # SOFT (PROPORTIONAL) CAP CONTROLLER
-# -------------------------------------------------
-
 def soft_capped_tou_controller(
     price: float,
     low_threshold: float,
@@ -146,11 +126,10 @@ def soft_capped_tou_controller(
     start_reduce = feeder_limit_kw * (1.0 - softness)
 
     if feeder_load_kw <= start_reduce:
-        # Plenty of margin: allow full action
         return requested_kw
 
     if feeder_load_kw >= feeder_limit_kw:
-        # At/above limit: block action that worsens the situation
+        # block action that worsens the situation
         # (allow discharge if it helps reduce load, block charging)
         return max(requested_kw, 0.0)
 
@@ -161,10 +140,7 @@ def soft_capped_tou_controller(
 
     return requested_kw * scale
 
-# -------------------------------------------------
-# AGGREGATION HELPER (optional)
-# -------------------------------------------------
-
+# AGGREGATION HELPER
 def aggregate_requests(requests: List[float]) -> float:
     """
     Sum of all battery requested powers.
@@ -172,10 +148,7 @@ def aggregate_requests(requests: List[float]) -> float:
 
     return sum(requests)
 
-# -------------------------------------------------
-# LOCAL-AWARE CONTROLLER  (information level: local)
-# -------------------------------------------------
- 
+# LOCAL-AWARE CONTROLLER 
 def local_aware_controller(
     price: float,
     low_threshold: float,
@@ -195,19 +168,16 @@ def local_aware_controller(
     """
     base_request = tou_controller(price, low_threshold, high_threshold, max_power_kw)
  
-    if base_request < 0.0:          # charging request
+    if base_request < 0.0:
         return base_request * (1.0 - soc)
  
-    if base_request > 0.0:          # discharging request
+    if base_request > 0.0:
         return base_request * soc
  
     return 0.0
  
  
-# -------------------------------------------------
-# NEIGHBOURHOOD CONTROLLER  (information level: neighborhood)
-# -------------------------------------------------
- 
+# NEIGHBOURHOOD CONTROLLER  
 def neighborhood_controller(
     price: float,
     low_threshold: float,
@@ -240,10 +210,7 @@ def neighborhood_controller(
     return base_request * scale
  
 
-# -------------------------------------------------
 # BELIEF + NEIGHBOURHOOD HYBRID CONTROLLER
-# -------------------------------------------------
-
 def belief_neighborhood_controller(
     price: float,
     low_threshold: float,
@@ -302,9 +269,7 @@ def belief_neighborhood_controller(
 
     return base_request * scale
 
-# -------------------------------------------------
-# DROOP CONTROLLER (Phase 4 — frequency response)
-# -------------------------------------------------
+# DROOP CONTROLLER
 
 def droop_controller(
     omega: float = 50.0,
