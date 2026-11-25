@@ -3,10 +3,10 @@ Theory-experiment bridge check.
 
 The analytic argument (Lemma: orthogonality of common signal and topology)
 predicts that the correlated forecast error projects ENTIRELY onto the
-consensus mode v_1 = 1/sqrt(N) -- the uniform vector. So at high rho, the
+consensus mode v_1 = 1/sqrt(N) - the uniform vector. So at high rho, the
 dominant SVD spatial mode u1 should be approximately UNIFORM across agents.
 
-This script verifies that empirically. If u1 is near-uniform at high rho, the
+This script verifies that empirically. If u1 is near uniform at high rho, the
 theory's central claim is confirmed directly. If u1 has structure, the linear
 argument is missing something (likely controller saturation).
 
@@ -15,10 +15,7 @@ Metric: coefficient of variation (CV) of |u1| across agents.
     CV large  : u1 has structure -> not pure consensus
 
 We compare u1 WITHOUT subtracting the mean (subtract_mean=False), because we
-want to SEE the common mode, not remove it.
-
-Run from repo root:
-    python -m experiments.check_consensus_mode
+want to see the common mode, not remove it.
 """
 
 from __future__ import annotations
@@ -47,7 +44,7 @@ from experiments.spectral_diagnostics import spectral_diagnostics
 
 
 SEED = 42
-# rho values to inspect: low (topology-ish), mid, high (should be consensus).
+# rho values to inspect: low (topology ish), mid, high (should be consensus).
 RHO_PROBE = [0.0, 0.5, 0.85, 1.0]
 BELIEF_WEIGHT = 0.5
 

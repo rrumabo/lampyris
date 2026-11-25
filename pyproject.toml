@@ -5,13 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "semele"
 version = "0.1.0"
-description = "Distributed battery coordination and curtailment-risk sandbox for renewable-heavy island grids."
+description = "Cyber-physical simulator of distributed home batteries and rooftop PV communities on low-voltage AC distribution feeders."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "numpy",
+    "scipy",
     "pandas",
     "matplotlib",
+    "networkx",
+    "pandapower",
+    "numba",
+    "joblib",
+    "tqdm",
 ]
 
 [tool.setuptools.packages.find]

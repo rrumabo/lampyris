@@ -1,41 +1,48 @@
 # macOS
 .DS_Store
+**/.DS_Store
 
-# Python
+# Python & Packaging
 __pycache__/
 *.py[cod]
 *.egg-info/
 src/*.egg-info/
 
-.DS_Store
-__pycache__/
-*.pyc
-
-results/
+# Compiled C++ shared libraries (compiled locally via clang++ per README)
+*.dylib
+*.so
 
 # Virtual environments
 .venv/
 venv/
 env/
-log.md
 
-# Tool caches
+# Private research diary, study PDFs & superseded fetch script
+log.md
+explanations/
+data/fetch_cyprus_data.py
+
+# Simulation outputs (keep raw dumps ignored; allow lightweight summary figures/tables)
+results/*
+!results/paper/
+!results/community/
+results/community/*
+!results/community/summary.csv
+!results/community/gates.txt
+!results/community/community_ac.png
+!results/droop/
+results/droop/*
+!results/droop/droop_summary.csv
+
+# Legacy experiments and results
+experiments/legacy/
+results/legacy/
+
+# Tool caches & local editors
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-
-# Jupyter
 .ipynb_checkpoints/
-
-# Local editor settings
 .vscode/
 .idea/
-
-# Local outputs / scratch
 outputs/
-# Legacy experiments and results (kept locally, not published)
-experiments/legacy/
-results/legacy/
-
-experiments/legacy/
-results/legacy/

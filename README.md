@@ -1,105 +1,98 @@
 # Lampyris
 
-A small simulator of home batteries that all respond to the same noisy price signal.
+# Short summary
+A cyber physical simulator of distributed home batteries and rooftop PV communities on low voltage distribution feeders.
+The repository is called **`Lampyris`**. The Python package inside it is called **`semele`**. It models the distribution level battery and feeder dynamics that feed into a Cyprus national transmission simulator (**`phaethon`**).
 
-The question:
-
-> When every battery in a street reacts to the same forecast, and the forecast errors are correlated, what does the fleet do together — and does the communication network between them still matter?
-
-The repository is called **Lampyris**. The Python package inside it is called **`semele`**.
+**Lampyris** (Python package: **`semele`**) is a neighborhood-level power grid simulator that models what happens when dozens of homes on the same street install rooftop solar panels and home batteries that all react to the same electricity prices or weather forecasts. Using real solar data from Paphos, Cyprus, it shows how synchronized charging and discharging can overload local street voltage long before the neighborhood's main transformer hits its limit, and tests how built-in smart-inverter safety settings prevent blackouts at the cost of charging less energy for homes at the far end of the street. When paired with [**phaethon**](https://github.com)—which models Cyprus's national high-voltage transmission grid—the two repositories form an end-to-end digital twin of the island's power system, making it possible to test whether a single price signal or passing cloud over one city can trigger a ripple effect across the entire country.
 
 ---
 
-## 1. Published result
+## 1. Published Result (Cyber / Communication Layer)
 
-**Paper:** S. Savva, *When a common price signal is present, network topology leaves no fingerprint on a storage fleet's collective dynamics*, arXiv:2607.06381 (nlin.CD), July 2026.
+**Paper:** S. Savva, *When a common price signal is present, network topology leaves no fingerprint on a storage fleet's collective dynamics*, [arXiv:2607.06381](https://arxiv.org) (nlin.CD), July 2026.
 
-**Setup**
+Each battery observes the market price through a correlated forecast error:
 
-Each battery sees the price through its own forecast error:
-
-```
+```text
 eps_i(t) = sqrt(rho) * Z(t) + sqrt(1 - rho) * eta_i(t)
 ```
 
-- `Z` is shared by everyone.
-- `eta_i` is private to each battery.
-- `rho` is the correlation between any two batteries' errors.
+where `Z(t)` is shared across the fleet, `eta_i(t)` is private to each battery, and `rho` is the pairwise error correlation. Because `Z(t)` projects onto the graph-invariant consensus mode `1/sqrt(N)`, communication topology's share of the dynamics scales as `O(1 / (rho * N))`.
 
-**Key fact**
+**Measured** (`N = 20` batteries; linear, star, and small-world graphs; 30 seeds)
 
-The mean error does not average away:
-
-```
-Var(mean error) = (sigma^2 / N) * [1 + (N - 1) * rho]  ->  rho * sigma^2   as N -> infinity
-```
-
-**Lemma (linearised fleet)**
-
-The shared part of the error drives only the consensus mode `1/sqrt(N)` of the graph Laplacian. No wiring can change that mode, so the topology's share of the dynamics is O(1/(rho N)).
-
-**Measured** (20 batteries; linear, star and small-world graphs)
-
-| | rho = 0 | rho = 1 |
+| Metric | `rho = 0` | `rho = 1` |
 |---|---|---|
-| `w1` (energy in the dominant mode) | 0.43–0.44 | 0.963 |
-| `PR` (effective number of modes) | 4.3–4.4 | 1.08 |
-| alignment of the dominant mode with `1/sqrt(N)` | 0.96 | 0.998 |
+| `w1` (dominant SVD mode energy) | 0.43–0.44 | 0.963 |
+| `PR` (effective active modes) | 4.3–4.4 | 1.08 |
+| Dominant mode alignment with `1/sqrt(N)` | 0.96 | 0.998 |
 
-- The three topologies give one curve. The change from rho = 0 to rho = 1 is a smooth crossover, not a phase transition.
-- Between-topology spread is 0.0043 (alpha = 0.5) and 0.0181 (alpha = 0). Both are below the same-graph noise floor of about 0.03, measured over 30 seeds with independent noise per replica.
+- Between-topology spread is `0.0043` (`alpha = 0.5`) and `0.0181` (`alpha = 0`), both below the single-graph random-seed noise floor (`~0.03`).
+- On a scalar kW feeder limit, violations rise smoothly with `rho` with no critical cliff (`rho ≈ 0.84` threshold falsified).
 
-**What did not survive**
+---
 
-An earlier version of this project claimed a *collapse threshold* near rho ≈ 0.84. The core sweep falsified it. Feeder violations rise smoothly with rho, with no knee and no bimodality. Correlation is a continuous risk dial, not a cliff.
+## 2. Physical AC Distribution Layer (Cyprus Calibration)
 
-## 2. Current work: a PV energy community (on trial)
+To capture electrical limits hidden by scalar feeder models, `semele` couples the battery fleet to a nonlinear AC radial feeder calibrated to Cyprus/European standards and real solar data:
 
-`experiments/run_community.py` puts the same fleet in a street with rooftop PV:
+- **Radial Street Feeder (`src/semele/ac_feeder.py`):** 20-house, `11 kV / 0.4 kV` (`50 Hz`) low-voltage feeder per Electricity Authority of Cyprus (EAC) Distribution Grid Rules (`250 kVA` transformer, `u_k = 4.0%`, `u_kr = 1.2%` per IEC 60076-5; standard `NAYY 4x150 SE` 150 mm² LV cable; `pf = 0.98`). Evaluates **EAC ±5% planning limits (`0.95–1.05 p.u.`)** and **CYS EN 50160 ±10% statutory limits (`0.90–1.10 p.u.`)**.
+- **C++17 Forward-Backward Sweep Engine (`src/semele/cpp/fbs_solver.cpp`):** Compiled complex AC solver verified against `pandapower` Newton-Raphson (`7.33e-06 p.u.` max bus voltage error, `110,452 solves/sec`, `588.9x` speedup).
+- **Solar Dataset (`data/paphos_pv_hourly.csv`):** 365 days of hourly rooftop PV output (`5.5 kWp`, `30°` tilt, due South, `14%` system loss) for **Paphos, Cyprus (`34.775°N, 32.424°E`)** from **EU PVGIS-SARAH3**.
 
-- **PV counted in the feeder.** The flow is `load − PV − battery`. Charging during a solar surplus relieves the feeder instead of loading it. Import and export limits are both checked.
-- **Two price rules:**
-  - `fixed`: the paper's rule, set in advance from the PV shape.
-  - `sdr`: a local price set every hour by the street's own supply and demand (the supply–demand-ratio mechanism of Liu et al., 2017), using the batteries' actions from the previous hour.
-- **Realistic rho.** Houses under the same clouds make rho high, so the sweep covers 0.7–1, plus 0 as a reference.
-- **Battery size** is swept at 3, 5, 7 and 10 kW per house against a 6 kW per-house feeder limit.
+**Measured Findings (`rho = 1.0`, 100 seasonal Paphos days)**
 
-**First results (synthetic data, 100 runs per condition)**
+| Feeder Topology | Battery / House | `V_min` (Fixed) | `V_min` (SDR) | Battery-Caused ±5% Viol (Fixed → SDR) | Peak Trafo Load (Fixed / SDR) |
+|---|---|---|---|---|---|
+| **Urban (`40 m`)** | `3 kW` | `0.942 p.u.` | `0.933 p.u.` | `-5.1%` → `+5.2%` | `35.6% / 40.7%` |
+| **Urban (`40 m`)** | `5 kW` | `0.928 p.u.` | `0.899 p.u.` | `-0.5%` → `+21.0%` | `43.9% / 60.9%` |
+| **Urban (`40 m`)** | `7 kW` | `0.899 p.u.` | `0.873 p.u.` | `+4.7%` → `+27.2%` | `60.9% / 76.0%` |
+| **Urban (`40 m`)** | `10 kW` | `0.851 p.u.` | `0.836 p.u.` | `+22.0%` → `+44.6%` | `89.2% / 98.1%` |
+| **Rural (`100 m`)** | `3 kW` | `0.853 p.u.` | `0.829 p.u.` | `-13.2%` → `-1.9%` | `38.1% / 44.0%` |
+| **Rural (`100 m`)** | `5 kW` | `0.812 p.u.` | `0.718 p.u.` | `-4.0%` → `+6.1%` | `48.2% / 70.9%` |
+| **Rural (`100 m`)** | `7 kW` | `0.715 p.u.` | `0.599 p.u.` | `+8.1%` → `+13.0%` | `71.2% / 97.5%` |
+| **Rural (`100 m`)** | `10 kW` | `0.243 p.u.` | `0.020 p.u.` | `+10.2%` → `+17.3%` | `107.8% / 123.1%` |
 
-- **Fixed price.** 3–5 kW batteries cause almost no violations. At 7–10 kW, violations appear from rho ≈ 0.7 and rise smoothly. At 10 kW and rho = 1, the batteries cause violations in 19% of hours.
-- **SDR price.**
-  - The peak is unchanged, but the price flip-flops 80 → 20 → 80 from hour to hour, even at rho = 0.
-  - The mechanism: discharging counts as supply, the price drops, everyone charges, the price rises, and the cycle repeats.
-  - The oscillation grows with battery size, not with rho. At 5 kW, the battery-caused violations rise from 0.7% to 18.5%.
-  - **Open:** this rests on two modelling choices, a one-hour price lag and an all-or-nothing controller. Whether it survives a same-hour clearing or a proportional controller is the next test.
+1. **Voltage breaches statutory limits before transformer overload:** On `urban_40m` (`10 kW`), peak transformer loading remains below 100% (`89.2%` fixed, `98.1%` SDR), yet bus voltage drops to `0.851 p.u.` (fixed) and `0.836 p.u.` (SDR), violating the `0.90 p.u.` CYS EN 50160 limit.
+2. **Endogenous SDR cobweb oscillation & collapse:** One-hour lagged local Supply–Demand Ratio (`SDR`) pricing flip-flops `46%–75%` of hours (`80 -> 20 -> 80`), synchronizing charging without correlated forecast noise and driving `10 kW` rural feeders (`100 m` spacing) into saddle-node AC voltage collapse (`V_min = 0.020 p.u.`).
+3. **Helper-to-breaker capacity crossover:** Under fixed PV-shaped pricing, `3–5 kW` batteries absorb midday solar peaks and reduce net ±5% voltage violations (`-5.1%` urban, `-13.2%` rural at `3 kW`). Above `7 kW`, synchronized charging flips them into net voltage violators.
+4. **EN 50549-1 Volt-Watt droop (`P(V)`) equity trade-off:** Instantaneous closed-loop Volt-Watt droop (`0.96 -> 0.95 p.u.` charging cutoff; `1.04 -> 1.05 p.u.` discharging cutoff) eliminates rural voltage collapse (`0.020 -> 0.791 p.u.` SDR; `0.243 -> 0.787 p.u.` fixed) and restores urban statutory compliance (`V_min >= 0.913 p.u.`) without peer-to-peer communication (1-hour lagged droop fails), at the cost of >91% charging curtailment at the feeder tail (`tail_to_head_charge_ratio = 0.042–0.088` at `10 kW`).
 
-## 3. Repository
+---
 
-```
+## 3. Repository Structure
+
+```text
+data/
+  paphos_pv_hourly.csv         EU PVGIS-SARAH3 hourly solar dataset (Paphos, Cyprus)
+
 src/semele/
-  battery.py       battery with power, energy and efficiency limits
-  controllers.py   TOU controller + the paper's belief/neighbour hybrid
-  network.py       information graph (linear, star, small world) + Laplacian
-  pricing.py       fixed PV-shaped price and SDR local price
-  simulator.py     one day of the fleet behind one feeder
+  cpp/fbs_solver.cpp           C++17 nonlinear AC Forward-Backward Sweep solver
+  ac_feeder.py                 11 kV / 0.4 kV radial street model (C++ & pandapower)
+  battery.py                   Battery power, energy, and efficiency limits
+  controllers.py               TOU, belief/neighbor hybrid, and EN 50549-1 Volt-Watt droop
+  network.py                   Information graphs (linear, star, small-world) + Laplacian
+  pricing.py                   Fixed PV-shaped price and local SDR price
+  simulator.py                 Coupled cyber-physical daily simulation loop
 
 experiments/
-  reproduce_core_result.py     rho sweep: peaks, violations, curtailment
-  make_paper_plots.py          paper figures 1 and 2
-  check_consensus_mode.py      dominant mode vs 1/sqrt(N)
-  run_null_topology_test.py    same-graph noise floor
+  reproduce_core_result.py     Core rho sweep: peaks, violations, curtailment
+  make_paper_plots.py          arXiv:2607.06381 figures 1 and 2
+  check_consensus_mode.py      Dominant mode vs 1/sqrt(N)
+  run_null_topology_test.py    Same-graph noise floor
   run_belief_rho_sweep.py      2D sweep over rho and alpha
-  run_belief_rho_multiseed.py  the same, over 30 seeds
+  run_belief_rho_multiseed.py  2D sweep over 30 seeds
   run_spectral_sweep.py        w1 / PR along rho
   spectral_diagnostics.py      SVD measures w1 and PR
-  run_community.py             PV community: price rules x battery size x rho
-
-explanations/      a plain-language walkthrough of every code file
+  verify_cpp_ac.py             Verifies C++ FBS solver against pandapower NR
+  run_community.py             AC feeder x Paphos PV x price rules x battery size x rho
+  run_droop_test.py            Unmitigated vs closed-loop EN 50549-1 Volt-Watt droop
 ```
 
-## 4. Run
+---
 
-From the repository root:
+## 4. Setup & Run
 
 ```bash
 python3 -m venv .venv
@@ -107,18 +100,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
 
-python -m experiments.make_paper_plots      # results/paper/  (png + csv)
-python -m experiments.run_community         # results/community/  (about 1 min)
+# Compile C++17 AC solver (macOS / Linux)
+clang++ -O3 -std=c++17 -shared -fPIC src/semele/cpp/fbs_solver.cpp -o src/semele/cpp/libfbs.dylib
+
+python -m experiments.make_paper_plots      # results/paper/
+python -m experiments.verify_cpp_ac         # C++ vs pandapower accuracy & speed check
+python -m experiments.run_community         # results/community/
+python -m experiments.run_droop_test        # results/droop/
 ```
 
-Run scripts as modules (`python -m experiments.…`), because they import from each other. Outputs go to `results/`, which is not tracked by git.
-
-## 5. Limits
-
-- **Synthetic profiles.** These are not real Cyprus data: one day of PV and load, 20 houses, hourly steps.
-- **No AC power flow.** The feeder is a single import/export limit.
-- **Rule-based controllers.** These are not optimising controllers.
-- **The SDR mechanism** is implemented from the published formula, with a one-step lag. It is not tested against a real community's clearing.
+Run scripts as modules (`python -m experiments.…`) so package imports resolve cleanly.
 
 ## License
 

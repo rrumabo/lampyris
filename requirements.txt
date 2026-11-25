@@ -1,3 +1,9 @@
 numpy
+scipy
 pandas
 matplotlib
+networkx
+pandapower
+numba
+joblib
+tqdm
